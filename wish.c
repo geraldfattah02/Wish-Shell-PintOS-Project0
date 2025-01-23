@@ -4,9 +4,11 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <limits.h> // Include the header file that defines PATH_MAX
 
 #define MAX_INPUT_SIZE 1024
 #define MAX_TOKENS 64
+const char *DELIM = " \r\n\a"; // Delimiters for strtok, this will split the string by 
 
 
 char *path[] = {"/bin","/usr/bin", NULL};
@@ -85,10 +87,10 @@ void parse_and_execute(char *line) {
         char *arg; // Pointer to hold the argument
         int j = 0;
 
-        arg = strtok(commands[0], " ");
+        arg = strtok(commands[0], DELIM);
         while (arg != NULL) {
             args[j++] = arg;
-            arg = strtok(NULL, " ");
+            arg = strtok(NULL, DELIM);
         }
         args[j] = NULL;
 
@@ -147,10 +149,10 @@ void execute_parallel_commands(char **commands) {
             char *arg;
             int j = 0;
 
-            arg = strtok(commands[i], " "); // Split the command by " "
+            arg = strtok(commands[i], DELIM); // Split the command by " "
             while (arg != NULL) {
                 args[j++] = arg;
-                arg = strtok(NULL, " "); // Move to the next argument
+                arg = strtok(NULL, DELIM); // Move to the next argument
             }
             args[j] = NULL; // Set the last element of the array to NULL so we know where the end is
 
@@ -179,25 +181,56 @@ void execute_parallel_commands(char **commands) {
 }
 
 int handle_builtin_commands(char **args) {
+     
     printf("Handling builtin commands\n");
+    printf("strcmp(args[0], \"exit\") = %d\n", strcmp(args[0], "exit")); // Debugging output
+    //print arg0
+    printf("%s\n", args[0]);
     if (strcmp(args[0], "exit") == 0) {
+        printf("Exiting\n");
         if (args[1] != NULL) {
             fprintf(stderr, "wish: exit with arguments\n");
         } else {
             exit(0);
         }
+        return 1;
     } else if (strcmp(args[0], "cd") == 0) {
                     char *dir = args[1];
+       char cwd[PATH_MAX];
+                   char new_path[PATH_MAX]; // Buffer to hold the new path
 
-                    printf("Changing directory to: %s\n", dir); // Debugging output
+
+            // LOGGING
+            if (getcwd(cwd, sizeof(cwd)) != NULL) {
+                printf("Current directory: %s\n", cwd);
+            } else {
+                perror("getcwd() error");
+            
+            }
+            //--------------------------------------------------------------------------------
+            printf("Changing directory to: %s\n", dir); // Debugging output
+                    snprintf(new_path, sizeof(new_path), "%s/%s", cwd, dir);
+                dir = new_path; //this can probably be deleted, I was just testing to see if using a relative path would make cd work 
+
+            printf("Changing directory to: %s\n", dir); // Debugging output
 
         if (args[1] == NULL || args[2] != NULL) {
             fprintf(stderr, "wish: cd requires exactly one argument\n");
         } else {
-            if (chdir(args[1]) != 0) { // Change the directory to the one specified in the argument
+            chdir(dir);
+            if (chdir(dir) != 0) { // Change the directory to the one specified in the argument
                 perror("wish");
             }
         }
+
+        // LOGGING
+               if (getcwd(cwd, sizeof(cwd)) != NULL) {
+                printf("New directory: %s\n", cwd);
+            } else {
+                perror("getcwd() error");
+            }
+            //--------------------------------------------------------------------------------
+
         return 1;
     } else if (strcmp(args[0], "path") == 0) {
         // Handle path command
