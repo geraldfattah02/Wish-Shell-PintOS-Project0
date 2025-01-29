@@ -12,11 +12,9 @@
 const char *DELIM = " \r\n\a"; // Delimiters for strtok, this will split the string by
 
 char *path[MAX_TOKENS] = {"/bin", "/usr/bin", NULL};
-int redirect = 0;
 
 void execute_command(char **args);
 void execute_parallel_commands(char **commands);
-void redirect_output(char **args, char *output_file);
 int handle_builtin_commands(char **args);
 void parse_and_execute(char *line);
 char *find_executable(char *command);
@@ -34,9 +32,14 @@ int main(int argc, char *argv[])
         input = fopen(argv[1], "r"); // open the file in read mode
         if (!input)
         { // if the file cannot be opened
-            fprintf(stderr, "wish: cannot open file %s\n", argv[1]);
+            fprintf(stderr, "An error has occurred\n");
             exit(1);
         }
+    }
+    if (argc > 2)
+    {
+        fprintf(stderr, "An error has occurred\n");
+        exit(1);
     }
 
     while (1)
@@ -51,9 +54,6 @@ int main(int argc, char *argv[])
         { // if -1 that means the end of the file has been reached or there's nothing in the file
             break;
         }
-
-        printf("Read line: %s", line);
-
         parse_and_execute(line); // parse and execute the command
     }
 
@@ -68,8 +68,6 @@ int main(int argc, char *argv[])
 
 void parse_and_execute(char *line)
 {
-    printf("Parsing line: %s", line);
-
     char *commands[MAX_TOKENS]; // Array where each element is a pointer to a command separated by "&"
     char *command;              // Pointer to hold the command
     int i = 0;
@@ -81,13 +79,6 @@ void parse_and_execute(char *line)
         command = strtok(NULL, "&"); // Move to the next command, strtok will continue using line, if you put the first argument as NULL
     }
     commands[i] = NULL; // Set the last element of the array to NULL so we know where the end is
-
-    // LOGGING
-    printf("Parsed commands:\n");
-    for (int j = 0; j < i; j++)
-    {
-        printf("  Command %d: %s\n", j, commands[j]);
-    }
 
     if (i > 1)
     { // If there are multiple commands, execute
@@ -103,34 +94,69 @@ void parse_and_execute(char *line)
         int saved_stdout = -1, saved_stderr = -1;
 
         arg = strtok(commands[0], DELIM);
+        if (arg == NULL)
+        {
+            // no string input (only whitespace)
+            return;
+        }
+        if (arg[0] == '>')
+        {
+            fprintf(stderr, "An error has occurred\n");
+            return;
+        }
+        // printf("command: %s, arg: %s\n", commands[0], arg);
+
         while (arg != NULL)
         {
+            // check if > is stand alone.
             if (strcmp(arg, ">") == 0)
             {
-                // Redirection detected
-                output_file = strtok(NULL, DELIM);
-                if (output_file == NULL || strtok(NULL, DELIM) != NULL)
+                arg = strtok(NULL, DELIM);
+                if (arg == NULL)
                 {
-                    fprintf(stderr, "wish: invalid redirection syntax\n");
+                    fprintf(stderr, "An error has occurred\n");
                     return;
                 }
-                break; // Stop parsing further args bc we dont expect there to be anymore
+                output_file = arg;
+                if (strtok(NULL, DELIM) != NULL)
+                {
+                    fprintf(stderr, "An error has occurred\n");
+                    return;
+                }
             }
-            args[j++] = arg;
+            else
+            {
+                // checking edge cases of where > might be
+                char *redirect_pos = strchr(arg, '>'); // finds the index of >
+                if (redirect_pos != NULL)
+                {
+                    //> is attached to the beginning (`>out.txt`)
+                    if (redirect_pos == arg)
+                    {
+                        output_file = arg + 1;
+                    }
+                    else
+                    {
+                        //> is in the middle of the string (`abc>out.txt`)
+                        *redirect_pos = '\0';           // split at >
+                        args[j++] = arg;                // store first part as normal arg
+                        output_file = redirect_pos + 1; // store second part as output file
+                    }
+                    if (output_file == NULL || *output_file == '\0' || strtok(NULL, DELIM) != NULL)
+                    {
+                        fprintf(stderr, "An error has occurred\n");
+                        return;
+                    }
+                }
+                else
+                {
+                    args[j++] = arg;
+                }
+            }
+
             arg = strtok(NULL, DELIM);
         }
         args[j] = NULL;
-
-        // LOGGING
-        printf("Parsed arguments:\n");
-        for (int k = 0; k < j; k++)
-        {
-            printf("  Arg %d: %s\n", k, args[k]);
-        }
-        if (output_file)
-        {
-            printf("Redirection to file: %s\n", output_file);
-        }
 
         if (args[0] == NULL)
         { // If there are no arguments, return
@@ -144,10 +170,10 @@ void parse_and_execute(char *line)
         if (output_file)
         {
             // Open the output file
-            int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC);
+            int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644); //write only, create if not present, truncate, and give permissionss
             if (fd < 0)
             {
-                perror("wish");
+                perror("An error has occurred\n");
                 exit(1);
             }
             // Save original stdout and stderr
@@ -174,28 +200,28 @@ void parse_and_execute(char *line)
 
 void execute_command(char **args)
 {
-    printf("Executing\n");
+    // printf("Executing\n");
 
     pid_t pid; // Process ID for the child process and the parent process
     int status;
 
     pid = fork();
     if (pid == 0)
-    { // Child process
+    { // Child processf
         char *executable = find_executable(args[0]);
         if (executable == NULL)
         { // If the executable is not found
-            fprintf(stderr, "wish: %s: command not found\n", args[0]);
+            fprintf(stderr, "An error has occurred\n");
             exit(1);
         }
-        execv(executable, args); // Execute the command with the arguments
-        perror("wish");          // If execv fails, print an error message, this should never be reached because execv will replace the current process with the new process and shouldnt return
+        execv(executable, args);           // Execute the command with the arguments
+        perror("An error has occurred\n"); // If execv fails, print an error message, this should never be reached because execv will replace the current process with the new process and shouldnt return
         exit(1);
     }
     else if (pid < 0)
     {
         // Error forking
-        perror("wish");
+        perror("An error has occurred\n");
     }
     else
     {
@@ -220,12 +246,53 @@ void execute_parallel_commands(char **commands)
             char *args[MAX_TOKENS];
             char *arg;
             int j = 0;
-
+            char *output_file = NULL;
+            
             arg = strtok(commands[i], DELIM); // Split the command by " "
-            while (arg != NULL)
+            if (arg ==  NULL)
             {
-                args[j++] = arg;
-                arg = strtok(NULL, DELIM); // Move to the next argument
+                exit(1);
+            }
+            // Parse command and check for redirection
+            while (arg != NULL) 
+            {
+                // Check for standalone >
+                if (strcmp(arg, ">") == 0) {
+                    arg = strtok(NULL, DELIM);
+                    if (arg == NULL) {
+                        fprintf(stderr, "An error has occurred\n");
+                        exit(1);
+                    }
+                    output_file = arg;
+                    if (strtok(NULL, DELIM) != NULL) {
+                        fprintf(stderr, "An error has occurred\n");
+                        exit(1);
+                    }
+                    break;
+                }
+                else {
+                    // Check for attached > (like command>file.txt)
+                    char *redirect_pos = strchr(arg, '>');
+                    if (redirect_pos != NULL) {
+                        if (redirect_pos == arg) { // >file.txt case
+                            output_file = arg + 1;
+                        }
+                        else {
+                            *redirect_pos = '\0';
+                            args[j++] = arg;
+                            output_file = redirect_pos + 1;
+                        }
+                        if (output_file == NULL || *output_file == '\0') {
+                            fprintf(stderr, "An error has occurred\n");
+                            exit(1);
+                        }
+                        break;
+                    }
+                    else {
+                        args[j++] = arg;
+                    }
+                }
+                arg = strtok(NULL, DELIM);
             }
             args[j] = NULL; // Set the last element of the array to NULL so we know where the end is
 
@@ -233,21 +300,34 @@ void execute_parallel_commands(char **commands)
             { // If there are no arguments, return
                 exit(1);
             }
+        
+            // Handle redirection if > operator was found
+            if (output_file) {
+                int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd < 0) {
+                    fprintf(stderr, "An error has occurred\n");
+                    exit(1);
+                }
+                dup2(fd, STDOUT_FILENO);
+                dup2(fd, STDERR_FILENO);
+                close(fd);
+            }
 
             char *executable = find_executable(args[0]);
             if (executable == NULL)
             { // If the executable is not found
-                fprintf(stderr, "wish: %s: command not found\n", args[0]);
+                fprintf(stderr, "An error has occurred\n");
                 exit(1);
             }
 
             execv(executable, args); // Execute the command with the arguments for example ls -l would be ["ls", "-l"] so args[0] = "ls" and args[1] = "-l" or echo hello world
-            perror("wish");          // If execv fails, print an error message, this should never be reached because execv will replace the current process with the new process and shouldnt return
+            fprintf(stderr, "An error has occurred\n");
+            // If execv fails, print an error message, this should never be reached because execv will replace the current process with the new process and shouldnt return
             exit(1);
         }
         else if (pid < 0)
         { // If there was an error forking
-            perror("wish");
+            fprintf(stderr, "An error has occurred\n");
         }
         i++;
     }
@@ -260,15 +340,12 @@ void execute_parallel_commands(char **commands)
 
 int handle_builtin_commands(char **args)
 {
-
-    printf("Handling builtin commands\n");
-
     if (strcmp(args[0], "exit") == 0)
     {
-        printf("Exiting\n");
+        // printf("Exiting\n");
         if (args[1] != NULL)
         {
-            fprintf(stderr, "wish: exit with arguments\n");
+            fprintf(stderr, "An error has occurred\n");
         }
         else
         {
@@ -280,43 +357,24 @@ int handle_builtin_commands(char **args)
     {
         char *dir = args[1];
         char cwd[PATH_MAX];
-        // char new_path[PATH_MAX]; // Buffer to hold the new path
 
-        // LOGGING
-        if (getcwd(cwd, sizeof(cwd)) != NULL)
+        if (getcwd(cwd, sizeof(cwd)) == NULL)
         {
-            printf("Current directory: %s\n", cwd);
+            perror("An error has occurred\n");
         }
-        else
-        {
-            perror("getcwd() error");
-        }
-        //--------------------------------------------------------------------------------
-        printf("Changing directory to: %s\n", dir); // Debugging output
-
         if (args[1] == NULL || args[2] != NULL)
         {
-            fprintf(stderr, "wish: cd requires exactly one argument\n");
+            fprintf(stderr, "An error has occurred\n");
         }
-        else
+        else if (chdir(dir) != 0)
         {
-            if (chdir(dir) != 0)
-            { // Change the directory to the one specified in the argument
-                perror("wish");
-            }
+            perror("An error has occurred\n");
         }
 
-        // LOGGING
-        if (getcwd(cwd, sizeof(cwd)) != NULL)
+        if (getcwd(cwd, sizeof(cwd)) == NULL)
         {
-            printf("New directory: %s\n", cwd);
+            perror("An error has occurred\n");
         }
-        else
-        {
-            perror("getcwd() error");
-        }
-        //--------------------------------------------------------------------------------
-
         return 1;
     }
     else if (strcmp(args[0], "path") == 0)
@@ -344,13 +402,6 @@ int handle_builtin_commands(char **args)
             i++;
         }
         path[path_index] = NULL; // Null-terminate the array
-        i = 0;
-        while (path[i] != NULL)
-        {
-            printf("%s \n", path[i]);
-            i++;
-        }
-
         return 1;
     }
     return 0;
@@ -363,10 +414,8 @@ char *find_executable(char *command)
     {                                                                    // Loop through the path array
         snprintf(executable, MAX_INPUT_SIZE, "%s/%s", path[i], command); // Create the path to the executable
         if (access(executable, X_OK) == 0)
-        {                                                 // Check if the executable exists and is executable
-            printf("Executable found: %s\n", executable); // Print the path to the executable
-
-            return executable; // Return the path to the executable
+        { // Check if the executable exists and is executable
+            return executable;
         }
     }
     free(executable); // Free the memory allocated for the executable

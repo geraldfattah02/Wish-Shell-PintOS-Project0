@@ -1,11 +1,10 @@
-Executing
-Executable found: /bin/ls
 Makefile
-out
 README.md
+out
+out2
+test-wish.sh
 tester
 tests
-test-wish.sh
 text.txt
 wish
 wish.c
