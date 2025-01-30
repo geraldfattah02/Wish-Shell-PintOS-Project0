@@ -14,8 +14,7 @@ const char *DELIM = " \r\n\a\t"; // Delimiters for strtok, this will split the s
 char *path[MAX_TOKENS] = {"/bin", NULL};
 
 pid_t spawn_child(char **args, char *ouput_filename);
-void execute_command();
-void execute_parallel_commands(char **commands);
+void execute_command(char *full_command);
 int handle_builtin_commands(char **args);
 void execute_line(char *line);
 char *find_executable(char *command);
