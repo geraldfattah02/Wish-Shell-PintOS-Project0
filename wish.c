@@ -9,9 +9,9 @@
 
 #define MAX_INPUT_SIZE 1024
 #define MAX_TOKENS 64          // Upper limit of arguements that can be passed
-const char *DELIM = " \r\n\a"; // Delimiters for strtok, this will split the string by
+const char *DELIM = " \r\n\a\t"; // Delimiters for strtok, this will split the string by
 
-char *path[MAX_TOKENS] = {"/bin", "/usr/bin", NULL};
+char *path[MAX_TOKENS] = {"/bin", NULL};
 
 void execute_command(char **args);
 void execute_parallel_commands(char **commands);
@@ -172,9 +172,9 @@ void parse_and_execute(char *line)
             // Open the output file
             int fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644); //write only, create if not present, truncate, and give permissionss
             if (fd < 0)
-            {
+            { // Exit current command, but continue executing others
                 perror("An error has occurred\n");
-                exit(1);
+                return;
             }
             // Save original stdout and stderr
             saved_stdout = dup(STDOUT_FILENO);
