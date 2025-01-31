@@ -1,0 +1,65 @@
+diff -ruN '--exclude=.git' '--exclude=build' '--exclude=README' '--exclude=.gitignore' aos_pintos/src/lib/kernel/list.c pintos-solution/src/lib/kernel/list.c
+--- aos_pintos/src/lib/kernel/list.c	2024-03-01 00:23:28.000000000 +0000
++++ pintos-solution/src/lib/kernel/list.c	2025-01-27 03:46:24.210706995 +0000
+@@ -1,5 +1,6 @@
+ #include "list.h"
+ #include "../debug.h"
++#include "../../threads/thread.h"
+ 
+ /* Our doubly linked lists have two header elements: the "head"
+    just before the first element and the "tail" just after the
+@@ -311,11 +312,37 @@
+     }
+ }
+ 
+-int get_sorted_index (struct list *threads, struct thread *target) {
+-  /* Your implementation here */
+-  (void) threads;
+-  (void) target;
+-  return 0;
++/* Compares the tid of two threads in a list */
++bool thread_less (const struct list_elem *left, const struct list_elem *right, 
++                  void *aux)
++{
++  (void) aux;
++  struct thread *lthread = list_entry (left, struct thread, allelem);
++  struct thread *rthread = list_entry (right, struct thread, allelem);
++
++  return lthread->tid < rthread->tid;
++}
++
++/* Returns the index of the target thread in the sorted list of threads.
++   If the list is not sorted, this function will sort it. */
++int get_sorted_index (struct list *threads, struct thread *target)
++{
++  if (threads == NULL || target == NULL)
++    return -1;
++
++  list_sort(threads, thread_less, NULL);
++
++  int index = 0;
++  struct list_elem *e;
++  for (e = list_begin (threads); e != list_end (threads); e = list_next (e))
++  {
++    struct thread *cur = list_entry (e, struct thread, allelem);
++    if (cur->tid == target->tid)
++      return index;
++
++    index += 1;
++  }
++  return -1;
+ }
+ 
+ /* Returns true only if the list elements A through B (exclusive)
+diff -ruN '--exclude=.git' '--exclude=build' '--exclude=README' '--exclude=.gitignore' aos_pintos/src/lib/kernel/list.h pintos-solution/src/lib/kernel/list.h
+--- aos_pintos/src/lib/kernel/list.h	2024-03-01 00:23:28.000000000 +0000
++++ pintos-solution/src/lib/kernel/list.h	2025-01-27 03:40:41.214567155 +0000
+@@ -161,6 +161,8 @@
+ 
+ /* Miscellaneous. */
+ void list_reverse (struct list *);
++bool thread_less (const struct list_elem *left, const struct list_elem *right, 
++                  void *aux);
+ int get_sorted_index (struct list *threads, struct thread *target);
+ 
+ /* Compares the value of two list elements A and B, given
